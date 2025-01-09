@@ -6,7 +6,7 @@
     login_host: 18.208.182.68
   vars_prompt:
     - name: mysql_root_password
-      prompt: "Please enter the MySQL root password:"
+      prompt: "Please enter the MySQL root password"
       private: no
 
   tasks:
@@ -43,3 +43,25 @@
       changed_when: false
 
     - name: Reset MySQL root password
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_temp_password.stdout }}"
+        user: root
+        password: "{{ mysql_root_password }}"
+        host_all: true
+        state: present
+
+    - name: Secure MySQL installation
+      community.mysql.mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        name: test
+        state: absent  # Remove test database
+
+    - name: Disable remote root login
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        user: root
+        host: '%'
+        state: absent
