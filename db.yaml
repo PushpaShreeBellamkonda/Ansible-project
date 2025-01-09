@@ -14,6 +14,7 @@
       ansible.builtin.get_url:
         url: https://dev.mysql.com/get/mysql80-community-release-el7-6.noarch.rpm
         dest: /tmp/mysql80-community-release-el7-6.noarch.rpm
+        use_proxy: false
 
     - name: Install MySQL Yum repository
       ansible.builtin.yum:
