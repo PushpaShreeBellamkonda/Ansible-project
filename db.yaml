@@ -5,21 +5,25 @@
   vars:
     login_host: 18.208.182.68
   vars_prompt:
-  - name: mysql_root_password
-    prompt: please enter MySQL root password
-    private: no
+    - name: mysql_root_password
+      prompt: Please enter the MySQL root password:
+      private: no
 
   tasks:
-    - name: Ensure MySQL GPG key is installed
-      ansible.builtin.rpm_key:
+    - name: Download MySQL Yum repository RPM
+      ansible.builtin.get_url:
+        url: https://dev.mysql.com/get/mysql80-community-release-el7-6.noarch.rpm
+        dest: /tmp/mysql80-community-release-el7-6.noarch.rpm
+
+    - name: Install MySQL Yum repository
+      ansible.builtin.yum:
+        name: /tmp/mysql80-community-release-el7-6.noarch.rpm
         state: present
-        key: https://dev.mysql.com/get/mysql80-community-release-el7-6.noarch.rpm
 
     - name: Install MySQL Server
-      ansible.builtin.dnf:
+      ansible.builtin.yum:
         name: mysql-server
         state: latest
-        disable_gpg_check: yes  # To bypass GPG check if key isn't recognized
 
     - name: Start and Enable MySQL server
       ansible.builtin.service:
@@ -27,28 +31,37 @@
         state: started
         enabled: yes
 
-    - name: Install python mysql dependencies
+    - name: Install Python dependencies for MySQL
       ansible.builtin.pip:
         name:
           - PyMySQL
           - cryptography
-        executable: pip3.9  # Use pip3.9 for Python 3.9, adjust if necessary
 
-    # Check if the root password is set
-    - name: Check DB connection
-      community.mysql.mysql_info:
+    - name: Retrieve temporary MySQL root password
+      ansible.builtin.shell: grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'
+      register: mysql_temp_password
+      changed_when: false
+
+    - name: Reset MySQL root password
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_temp_password.stdout }}"
+        user: root
+        password: "{{ mysql_root_password }}"
+        host_all: true
+        state: present
+
+    - name: Secure MySQL installation
+      community.mysql.mysql_db:
         login_user: root
         login_password: "{{ mysql_root_password }}"
-        login_host: "{{ login_host }}"
-        filter: version
-      ignore_errors: yes
-      register: mysql_connection_output
+        name: test
+        state: absent  # Remove test database
 
-    - name: Print output
-      ansible.builtin.debug:
-        msg: "Output: {{ mysql_connection_output }}"
-
-    # Setup root password if not already set
-    - name: Setup root password
-      ansible.builtin.command: "mysql_secure_installation --set-root-pass {{ mysql_root_password }}"
-      when: mysql_connection_output.failed is true
+    - name: Disable remote root login
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        user: root
+        host: '%'
+        state: absent
