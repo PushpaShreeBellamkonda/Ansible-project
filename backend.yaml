@@ -17,7 +17,7 @@
       state: installed
     loop:
     - nodejs
-    - mysql
+    - mysql-server
 
   - name: create expense user
     ansible.builtin.user:
