@@ -14,10 +14,10 @@
   - name: install nodejs and mysql-server
     ansible.builtin.dnf: # only works for Redhat family
       name: "{{ item }}"
-      state: installed
+      state: latest
     loop:
     - nodejs
-    - mysql
+    - mysql-server
 
   - name: create expense user
     ansible.builtin.user:
@@ -62,8 +62,9 @@
       login_password: "{{ login_password }}"
       login_host: "{{ login_host }}"
       target: /app/schema/backend.sql
-      state: import
       name: all
+      state: import
+     
 
   - name: daemon reload
     ansible.builtin.systemd_service:
