@@ -40,11 +40,6 @@
         state: enabled
       become: yes
 
-    - name: restart mysql service
-      ansible.builtin.systemd:
-        name: mysqld
-        state: restarted
-
     - name: grant MySQL privileges for remote access
       ansible.builtin.mysql_user:
         name: root
@@ -76,3 +71,9 @@
         name: backend
         state: started
         enabled: yes
+
+  handlers:
+    - name: restart mysql
+      ansible.builtin.systemd:
+        name: mysqld
+        state: restarted
