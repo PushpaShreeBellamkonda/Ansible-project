@@ -51,7 +51,7 @@
 
     - name: create database if not exists
       community.mysql.mysql_db:
-        name: all
+        name: expense_db  # Use a valid database name (change it as per your needs)
         state: present
         login_user: root
         login_password: "{{ login_password }}"
@@ -64,7 +64,7 @@
         login_host: "{{ login_host }}"
         target: /app/schema/backend.sql
         state: import
-        name: all
+        name: expense_db  # Use the same valid database name here
 
     - name: start and enable backend service
       ansible.builtin.service:
