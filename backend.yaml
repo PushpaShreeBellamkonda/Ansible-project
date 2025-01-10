@@ -11,13 +11,13 @@
   - name: enable nodejs:20
     ansible.builtin.command: dnf module enable nodejs:20 -y
 
-  - name: install nodejs and mysql-server
+  - name: install nodejs
     ansible.builtin.dnf: # only works for Redhat family
       name: "{{ item }}"
-      state: latest
+      state: installed
     loop:
     - nodejs
-    - mysql-server
+    - mysql
 
   - name: create expense user
     ansible.builtin.user:
@@ -62,9 +62,8 @@
       login_password: "{{ login_password }}"
       login_host: "{{ login_host }}"
       target: /app/schema/backend.sql
-      name: all
       state: import
-     
+      name: all
 
   - name: daemon reload
     ansible.builtin.systemd_service:
