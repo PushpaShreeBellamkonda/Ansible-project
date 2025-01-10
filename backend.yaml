@@ -5,75 +5,74 @@
     login_host: 3.95.176.159
     login_password: ExpenseApp@1
   tasks:
-  - name: disable default nodejs
-    ansible.builtin.command: dnf module disable nodejs -y
+    - name: disable default nodejs
+      ansible.builtin.command: dnf module disable nodejs -y
 
-  - name: enable nodejs:20
-    ansible.builtin.command: dnf module enable nodejs:20 -y
+    - name: enable nodejs:20
+      ansible.builtin.command: dnf module enable nodejs:20 -y
 
-  - name: install nodejs
-    ansible.builtin.dnf: # only works for Redhat family
-      name: "{{ item }}"
-      state: installed
-    loop:
-    - nodejs
-    - mysql
+    - name: install nodejs and mysql-server
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: installed
+      loop:
+        - nodejs
+        - mysql
 
-  - name: create expense user
-    ansible.builtin.user:
-      name: expense
+    - name: start mysql service
+      ansible.builtin.systemd:
+        name: mysqld
+        state: started
+        enabled: yes
 
-  - name: create app directory
-    ansible.builtin.file:
-      path: /app
-      state: directory
+    - name: ensure bind-address is set to 0.0.0.0 for remote connections
+      ansible.builtin.lineinfile:
+        path: /etc/my.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+      notify:
+        - restart mysql
 
-  - name: download backend code
-    ansible.builtin.get_url:
-      url: https://expense-builds.s3.us-east-1.amazonaws.com/expense-backend-v2.zip
-      dest: /tmp/backend.zip
+    - name: open MySQL port in firewall
+      ansible.builtin.firewalld:
+        port: 3306/tcp
+        permanent: yes
+        state: enabled
+      become: yes
 
-  - name: unzip backend code
-    ansible.builtin.unarchive:
-      src: /tmp/backend.zip # by default checks in ansible server
-      dest: /app
-      remote_src: yes
+    - name: restart mysql service
+      ansible.builtin.systemd:
+        name: mysqld
+        state: restarted
 
-  - name: install npm dependencies
-    ansible.builtin.command: npm install
-    args:
-      chdir: /app
+    - name: grant MySQL privileges for remote access
+      ansible.builtin.mysql_user:
+        name: root
+        host: '%'
+        password: "{{ login_password }}"
+        priv: '*.*:ALL'
+        state: present
+      become: yes
 
-  - name: copy backend service
-    ansible.builtin.copy:
-      src: backend.service
-      dest: /etc/systemd/system/backend.service
+    - name: create database if not exists
+      community.mysql.mysql_db:
+        name: all
+        state: present
+        login_user: root
+        login_password: "{{ login_password }}"
+        login_host: "{{ login_host }}"
 
-  - name: install python mysql dependencies
-    ansible.builtin.pip: 
-      name:
-      - PyMySQL # to connect MySQL DB from Ansible
-      - cryptography
-      executable: pip3.9 # pip3.11 if python version is 3.11
+    - name: import data into mysql
+      community.mysql.mysql_db:
+        login_user: root
+        login_password: "{{ login_password }}"
+        login_host: "{{ login_host }}"
+        target: /app/schema/backend.sql
+        state: import
+        name: all
 
-  - name: import data into mysql
-    community.mysql.mysql_db:
-      login_user: root
-      login_password: "{{ login_password }}"
-      login_host: "{{ login_host }}"
-      target: /app/schema/backend.sql
-      state: import
-      name: all
-
-  - name: daemon reload
-    ansible.builtin.systemd_service:
-      daemon_reload: true
-
-  - name: start and enable backend service
-    ansible.builtin.service:
-      name: backend
-      state: started
-      enabled: yes
-
-      
-  
+    - name: start and enable backend service
+      ansible.builtin.service:
+        name: backend
+        state: started
+        enabled: yes
